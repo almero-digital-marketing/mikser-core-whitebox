@@ -2,11 +2,11 @@ import { mikser, onImport, useLogger, constants, onLoaded, onSync, watchEntities
 import { useMachineId } from './whitebox.js'
 import Queue from 'queue'
 import fs from 'fs/promises'
-import { createReadStream } from 'fs'
+import { createReadStream } from 'node:fs'
 import axios from 'axios'
 import hasha from 'hasha'
 import { globby } from 'globby'
-import { join, extname } from 'path'
+import { join, extname } from 'node:path'
 import FormData from 'form-data'
 
 let queue = Queue({
