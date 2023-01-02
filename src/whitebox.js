@@ -12,7 +12,7 @@ export async function api(service, route, data) {
     if (!url || !token ) return
 
     try {
-        const response = await axios.post(url + route + '?v=' + Date.now(), data, {
+        const response = await axios.post(url + route + '?stamp=' + Date.now(), data, {
             headers: {
                 Authorization: 'Bearer ' + token,
             }

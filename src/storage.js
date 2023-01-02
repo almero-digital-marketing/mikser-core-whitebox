@@ -9,6 +9,9 @@ import { globby } from 'globby'
 import { join, extname } from 'node:path'
 import FormData from 'form-data'
 
+export const collection = 'files'
+export const type = 'storage'
+
 let queue = Queue({
     concurrency: 4,
     autostart: true
@@ -63,11 +66,11 @@ async function upload(entity) {
                         }
                     }							
                 } catch (err) {
-                    logger.error(err, 'WhiteBox storage upload error')
+                    logger.error('WhiteBox storage upload error: %s', err.message)
                 }
             }
         } catch (err) {
-            logger.error(err, 'WhiteBox storage error')
+            logger.error('WhiteBox storage error: %s', err.message)
         }
 
         fh.close()
@@ -94,7 +97,6 @@ async function unlink(relativePath) {
 }
 
 async function link(file) {
-    const logger = useLogger()
     const { global, services: { storage } } = mikser.config.whitebox
     let data = {
         file
@@ -109,7 +111,7 @@ onLoaded(async () => {
     const { global, services: { storage } } = mikser.config.whitebox
     if (!storage) return
 
-    mikser.options.storageFolder = storage?.storageFolder || join(mikser.options.workingFolder, 'storage')
+    mikser.options.storageFolder = storage?.storageFolder || join(mikser.options.workingFolder, type)
 
     logger.info('Storage: %s', mikser.options.storageFolder)
     await fs.mkdir(mikser.options.storageFolder, { recursive: true })
@@ -125,14 +127,12 @@ onLoaded(async () => {
             logger.info('WhiteBox storage: %s', 'clear')
             await axios.post(storage.url + '/' + storage.token + '/clear', {})
         } catch (err) {
-            logger.error('WhiteBox storage error: %s', err)
+            logger.error('WhiteBox storage error: %s', err.message)
         }
     }
 })
 
-onSync(async ({ id, operation }) => {
-    const relativePath = id.replace('/storage/', '')
-
+onSync(async ({ id, operation, relativePath }) => {
     const uri = await link(id)
     const source = join(mikser.options.storageFolder, relativePath)
     const format = extname(relativePath).substring(1).toLowerCase()
@@ -144,8 +144,8 @@ onSync(async ({ id, operation }) => {
                 id,
                 uri,
                 name: relativePath.replace(extname(relativePath), ''),
-                collection: 'files',
-                type: 'storage',
+                collection,
+                type,
                 format,
                 source,
                 checksum
@@ -157,8 +157,8 @@ onSync(async ({ id, operation }) => {
                 id,
                 uri,
                 name: relativePath.replace(extname(relativePath), ''),
-                collection: 'files',
-                type: 'storage',
+                collection,
+                type,
                 format,
                 source,
                 checksum
@@ -167,20 +167,20 @@ onSync(async ({ id, operation }) => {
         case constants.OPERATION_DELETE:
             await deleteEntity({
                 id,
-                collection: 'files',
-                type: 'storage',
+                collection,
+                type,
                 checksum
             })
         break
     }
-})
+}, type)
 
 onProcessed(async () => {
     const logger = useLogger()
 
     const filesToUpload = useOperations([constants.OPERATION_CREATE, constants.OPERATION_UPDATE])
     .map(operation => operation.entity)
-    .filter(entity => !entity.layout && entity.type == 'storage')
+    .filter(entity => !entity.layout && entity.type == type)
 
     for (let entity of filesToUpload) {
         queue.push(async () => await upload(entity))
@@ -189,10 +189,10 @@ onProcessed(async () => {
 
     const entitiesToUnlink = useOperations([constants.OPERATION_DELETE])
     .map(operation => operation.entity)
-    .filter(entity => !entity.layout && entity.type == 'storage')
+    .filter(entity => !entity.layout && entity.type == type)
 
     for (let entity of entitiesToUnlink) {
-        const relativePath = entity.id.replace('/storage', '')
+        const relativePath = entity.id.replace(`/${type}`, '')
         queue.push(async () => await unlink(relativePath))
     }
     entitiesToUnlink.length && logger.info('WhiteBox storage: %s %s', 'unlink', entitiesToUnlink.length)
@@ -210,8 +210,8 @@ onImport(async () => {
         await createEntity({
             id,
             uri,
-            collection: 'files',
-            type: 'storage',
+            collection,
+            type,
             format: extname(relativePath).substring(1).toLowerCase(),
             name: relativePath,
             source,
