@@ -42,7 +42,7 @@ onProcessed(async () => {
 
     const entitiesToAdd = useOperations([constants.OPERATION_CREATE, constants.OPERATION_UPDATE])
     .map(operation => operation.entity)
-    .filter(entity => !entity.layout && entity.type == 'document')
+    .filter(entity => entity.type == 'document')
 
     for (let entity of entitiesToAdd) {
         logger.trace('WhiteBox feed: %s', entity.id)
@@ -50,7 +50,7 @@ onProcessed(async () => {
             passportId: uuidv1(),
             vaultId: aguid(entity.id),
             refId: '/' + entity.name,
-            type: 'mikser.' + entity.meta?.layout || entity.type,
+            type: 'mikser.' + entity.meta?.type || entity.type,
             data: _.pick(entity, ['meta', 'stamp', 'content', 'type', 'collection', 'format', 'id', 'uri']),
             date: await stat(entity.uri).mtime,
             vaults: entity.meta?.vaults,
