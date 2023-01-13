@@ -42,7 +42,7 @@ onProcessed(async () => {
 
     const entitiesToAdd = useOperations([constants.OPERATION_CREATE, constants.OPERATION_UPDATE])
     .map(operation => operation.entity)
-    .filter(entity => entity.type == 'document')
+    .filter(entity => _.matches(entity, feed.match || { type: 'document' }))
 
     for (let entity of entitiesToAdd) {
         logger.trace('WhiteBox feed: %s', entity.id)
@@ -68,7 +68,7 @@ onProcessed(async () => {
 
     const entitiesToDelete = useOperations([constants.OPERATION_DELETE])
     .map(operation => operation.entity)
-    .filter(entity => entity.type == 'document')
+    .filter(entity => _.matches(entity, feed.match || { type: 'document' }))
 
     for (let entity of entitiesToDelete) {
         let data = {
