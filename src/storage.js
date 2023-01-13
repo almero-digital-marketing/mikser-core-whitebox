@@ -1,4 +1,4 @@
-import { mikser, onImport, useLogger, constants, onLoaded, onSync, watchEntities, createEntity, updateEntity, deleteEntity, onProcessed, useOperations } from 'mikser-core'
+import { mikser, onImport, useLogger, constants, onLoaded, onSync, watch, createEntity, updateEntity, deleteEntity, onProcessed, useOperations } from 'mikser-core'
 import { useMachineId } from './whitebox.js'
 import Queue from 'queue'
 import fs from 'fs/promises'
@@ -29,21 +29,18 @@ async function upload(entity) {
         const fh = await fs.open(file, fs.constants.O_RDONLY | 0x10000000)
 
         try {
-            const { global, services: { storage } } = mikser.config.whitebox
+            const { context, services: { storage } } = mikser.config.whitebox
             let data = {
-                file: relativePath
+                file: relativePath,
+                context: context || await useMachineId()
             }
-            if (!global) data.context = await useMachineId()
             const responseHash = await axios.post(storage.url + '/' + storage.token + '/hash', data)
             const matchedHash = responseHash.data.success && entity.checksum == responseHash.data.hash
             logger.debug('WhiteBox storage: %s %s %s', 'hash', file, matchedHash)
             if (!matchedHash) {
-                let uploadHeaders = {}
-                if (!global) {
-                    uploadHeaders = {
-                        expire: storage.expire,
-                        context: data.context
-                    }
+                const uploadHeaders = {
+                    expire: storage.expire === false ? false : storage.expire || '10 days',
+                    context: data.context
                 }
                 let form = new FormData()
                 form.append(relativePath, createReadStream(file))
@@ -83,11 +80,11 @@ async function upload(entity) {
 
 async function unlink(relativePath) {
     const logger = useLogger()
-    const { global, services: { storage } } = mikser.config.whitebox
+    const { context, services: { storage } } = mikser.config.whitebox
     let data = {
-        file: relativePath
+        file: relativePath,
+        context: context || await useMachineId()
     }
-    if (!global) data.context = await useMachineId()
     try {
         await axios.post(storage.url + '/' + storage.token + '/unlink', data)
         logger.debug('WhiteBox storage: %s %s', 'unlink', relativePath)
@@ -97,18 +94,18 @@ async function unlink(relativePath) {
 }
 
 async function link(file) {
-    const { global, services: { storage } } = mikser.config.whitebox
+    const { context, services: { storage } } = mikser.config.whitebox
     let data = {
-        file
+        file,
+        context: context || await useMachineId()
     }
-    if (!global) data.context = await useMachineId()
     const response = await axios.post(storage.url + '/' + storage.token + '/link', data)
     return response.data.link
 }
 
 onLoaded(async () => {
     const logger = useLogger()
-    const { global, services: { storage } } = mikser.config.whitebox
+    const { context, services: { storage } } = mikser.config.whitebox
     if (!storage) return
 
     mikser.options.storageFolder = storage?.storageFolder || join(mikser.options.workingFolder, type)
@@ -116,23 +113,25 @@ onLoaded(async () => {
     logger.info('Storage: %s', mikser.options.storageFolder)
     await fs.mkdir(mikser.options.storageFolder, { recursive: true })
 
-    watchEntities('storage', mikser.options.storageFolder)
+    watch('storage', mikser.options.storageFolder)
 
     if (mikser.options.clear) {
-        const data = {}
-        if (global) {
-            data.context = await useMachineId()
+        const data = {
+            context: context || await useMachineId()
         }
         try {
             logger.info('WhiteBox storage: %s', 'clear')
-            await axios.post(storage.url + '/' + storage.token + '/clear', {})
+            await axios.post(storage.url + '/' + storage.token + '/clear', data)
         } catch (err) {
             logger.error('WhiteBox storage error: %s', err.message)
         }
     }
 })
 
-onSync(async ({ id, operation, relativePath }) => {
+onSync(async ({ operation, context: { relativePath } }) => {
+    if (!relativePath) return false
+
+    const id = path.join(`/${collection}`, relativePath)
     const uri = await link(id)
     const source = join(mikser.options.storageFolder, relativePath)
     const format = extname(relativePath).substring(1).toLowerCase()
