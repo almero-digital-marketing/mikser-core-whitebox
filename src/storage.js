@@ -36,7 +36,7 @@ async function upload(entity) {
             }
             const responseHash = await axios.post(storage.url + '/' + storage.token + '/hash', data)
             const matchedHash = responseHash.data.success && entity.checksum == responseHash.data.hash
-            logger.debug('WhiteBox storage: %s %s %s', 'hash', file, matchedHash)
+            logger.debug('WhiteBox storage %s: %s %s', 'hash', file, matchedHash)
             if (!matchedHash) {
                 const uploadHeaders = {
                     expire: storage.expire === false ? false : storage.expire || '10 days',
@@ -58,8 +58,8 @@ async function upload(entity) {
                     })
                     if (responseUpload.data.uploads) {
                         for (let file in responseUpload.data.uploads) {
-                            logger.debug('WhiteBox storage: %s %s', 'upload', file)
-                            logger.info('WhiteBox storage: %s %s', 'link', responseUpload.data.uploads[file])
+                            logger.debug('WhiteBox storage %s: %s', 'upload', file)
+                            logger.info('WhiteBox storage %s: %s', 'link', responseUpload.data.uploads[file])
                         }
                     }							
                 } catch (err) {

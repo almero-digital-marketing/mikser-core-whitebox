@@ -13,7 +13,7 @@ let queue = Queue({
 
 const clearCache = debounce(1000, async () => {
     const logger = useLogger()
-    logger.info('WhiteBox feed: %s %s', 'clear', 'cache')
+    logger.info('WhiteBox feed %s: %s', 'clear', 'cache')
     const { context } = mikser.config.whitebox
     let data = {
         context: context || await useMachineId()
@@ -29,7 +29,7 @@ onLoaded(async () => {
             context: context || await useMachineId()
         }
 
-        logger.info('WhiteBox feed: %s %s', 'clear', 'catalog')
+        logger.info('WhiteBox feed %s: %s', 'clear', 'catalog')
         await api('feed', '/api/catalog/clear', data)
         clearCache()
     }
@@ -60,11 +60,11 @@ onProcessed(async () => {
 
         queue.push(async () => {
             clearCache()
-            logger.debug('WhiteBox feed: %s %s', 'keep', data.refId)
+            logger.debug('WhiteBox feed %s: %s', 'keep', data.refId)
             await api('feed', '/api/catalog/keep/one', data)
         })
     }
-    entitiesToAdd.length && logger.info('WhiteBox feed: %s %s', 'keep', entitiesToAdd.length)
+    entitiesToAdd.length && logger.info('WhiteBox feed %s: %s', 'keep', entitiesToAdd.length)
 
     const entitiesToDelete = useOperations([constants.OPERATION_DELETE])
     .map(operation => operation.entity)
@@ -79,10 +79,10 @@ onProcessed(async () => {
         if (!options.clear) {
             queue.push(() => {
                 clearCache()
-                logger.debug('WhiteBox feed: %s %s', 'remove', entity.id)
+                logger.debug('WhiteBox feed %s: %s', 'remove', entity.id)
                 return api('feed', '/api/catalog/remove', data)
             })
         }
     }
-    entitiesToDelete.length && logger.info('WhiteBox feed: %s %s', 'remove', entitiesToDelete.length)
+    entitiesToDelete.length && logger.info('WhiteBox feed %s: %s', 'remove', entitiesToDelete.length)
 })
