@@ -42,9 +42,13 @@ onProcessed(async () => {
 
     const entitiesToAdd = useOperations([constants.OPERATION_CREATE, constants.OPERATION_UPDATE])
     .map(operation => operation.entity)
-    .filter(entity => _.matches(entity, feed.match || { type: 'document' }))
+    .filter(_.matches(feed.match || { type: 'document' }))
 
     for (let entity of entitiesToAdd) {
+        if (!entity.name || !entity.id) {
+            logger.warn(entity, 'WhiteBox feed skipping')
+            continue
+        }
         logger.trace('WhiteBox feed: %s', entity.id)
         const data = {
             passportId: uuidv1(),
@@ -60,7 +64,7 @@ onProcessed(async () => {
 
         queue.push(async () => {
             clearCache()
-            logger.debug('WhiteBox feed %s: %s', 'keep', data.refId)
+            logger.debug('WhiteBox feed %s: %s %s', 'keep', entity.type, data.refId)
             await api('feed', '/api/catalog/keep/one', data)
         })
     }
@@ -68,7 +72,7 @@ onProcessed(async () => {
 
     const entitiesToDelete = useOperations([constants.OPERATION_DELETE])
     .map(operation => operation.entity)
-    .filter(entity => _.matches(entity, feed.match || { type: 'document' }))
+    .filter(_.matches(feed.match || { type: 'document' }))
 
     for (let entity of entitiesToDelete) {
         let data = {
@@ -79,7 +83,7 @@ onProcessed(async () => {
         if (!options.clear) {
             queue.push(() => {
                 clearCache()
-                logger.debug('WhiteBox feed %s: %s', 'remove', entity.id)
+                logger.debug('WhiteBox feed %s: %s %s', 'remove', entity.type, entity.id)
                 return api('feed', '/api/catalog/remove', data)
             })
         }

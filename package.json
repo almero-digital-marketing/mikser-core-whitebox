@@ -1,6 +1,6 @@
 {
   "name": "mikser-core-whitebox",
-  "version": "1.0.2",
+  "version": "1.0.8",
   "description": "",
   "main": "index.js",
   "type": "module",
