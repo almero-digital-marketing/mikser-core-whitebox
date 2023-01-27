@@ -128,7 +128,7 @@ onLoaded(async () => {
     }
 })
 
-onSync(async ({ operation, context: { relativePath } }) => {
+onSync(type, async ({ operation, context: { relativePath } }) => {
     if (!relativePath) return false
 
     const id = path.join(`/${collection}`, relativePath)
@@ -172,7 +172,7 @@ onSync(async ({ operation, context: { relativePath } }) => {
             })
         break
     }
-}, type)
+})
 
 onProcessed(async () => {
     const logger = useLogger()
