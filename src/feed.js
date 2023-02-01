@@ -35,7 +35,7 @@ export default ({
     
     onLoaded(async () => {
         const logger = useLogger()
-        if (mikser.options.clear) {
+        if (mikser.mikser.options.clear) {
             const { context } = mikser.config.whitebox
             const data = {
                 context: context || await useMachineId()
@@ -92,7 +92,7 @@ export default ({
                 context: context || await useMachineId()
             }
     
-            if (!options.clear) {
+            if (!mikser.options.clear) {
                 queue.push(() => {
                     clearCache()
                     logger.debug('WhiteBox feed %s: %s %s', 'remove', entity.type, entity.id)
