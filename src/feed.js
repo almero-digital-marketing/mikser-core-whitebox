@@ -8,11 +8,11 @@ export default ({
     mikser, 
     onProcessed, 
     useLogger, 
-    useOperations, 
-    constants, 
+    useJournal, 
     onLoaded, 
     whiteboxApi, 
-    useMachineId 
+    useMachineId, 
+    constants: { OPERATION }, 
 }) => {
     let queue = Queue({
         concurrency: 4,
@@ -52,7 +52,7 @@ export default ({
         const { context, services: { feed } } = mikser.config.whitebox || { services: {} }
         if (!feed) return
     
-        const entitiesToAdd = useOperations([constants.OPERATION_CREATE, constants.OPERATION_UPDATE])
+        const entitiesToAdd = useJournal(OPERATION.CREATE, OPERATION.UPDATE)
         .map(operation => operation.entity)
         .filter(_.matches(feed.match || { type: 'document' }))
     
@@ -82,7 +82,7 @@ export default ({
         }
         entitiesToAdd.length && logger.info('WhiteBox feed %s: %s', 'keep', entitiesToAdd.length)
     
-        const entitiesToDelete = useOperations([constants.OPERATION_DELETE])
+        const entitiesToDelete = useJournal(OPERATION.DELETE)
         .map(operation => operation.entity)
         .filter(_.matches(feed.match || { type: 'document' }))
     

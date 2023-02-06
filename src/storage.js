@@ -11,7 +11,6 @@ export default ({
     mikser, 
     onImport, 
     useLogger, 
-    constants, 
     onLoaded, 
     onSync, 
     watch, 
@@ -19,8 +18,9 @@ export default ({
     updateEntity, 
     deleteEntity, 
     onProcessed, 
-    useOperations, 
-    useMachineId 
+    useJournal, 
+    useMachineId, 
+    constants: { ACTION, OPERATION }, 
 }) => {
 
     const collection = 'files'
@@ -146,7 +146,7 @@ export default ({
         }
     })
     
-    onSync(type, async ({ operation, context: { relativePath } }) => {
+    onSync(type, async ({ action, context: { relativePath } }) => {
         if (!relativePath) return false
     
         const id = path.join(`/${collection}`, relativePath)
@@ -154,8 +154,8 @@ export default ({
         const source = join(mikser.options.storageFolder, relativePath)
         const format = extname(relativePath).substring(1).toLowerCase()
         
-        switch (operation) {
-            case constants.OPERATION_CREATE:
+        switch (action) {
+            case ACTION.CREATE:
                 var checksum = await hasha.fromFile(source, { algorithm: 'md5' })
                 await createEntity({
                     id,
@@ -168,7 +168,7 @@ export default ({
                     checksum
                 })
             break
-            case constants.OPERATION_UPDATE:
+            case ACTION.UPDATE:
                 var checksum = await hasha.fromFile(source, { algorithm: 'md5' })
                 await updateEntity({
                     id,
@@ -181,7 +181,7 @@ export default ({
                     checksum
                 })
             break
-            case constants.OPERATION_DELETE:
+            case ACTION.DELETE:
                 await deleteEntity({
                     id,
                     collection,
@@ -195,7 +195,7 @@ export default ({
     onProcessed(async () => {
         const logger = useLogger()
     
-        const filesToUpload = useOperations([constants.OPERATION_CREATE, constants.OPERATION_UPDATE])
+        const filesToUpload = useJournal(OPERATION.CREATE, OPERATION.UPDATE)
         .map(operation => operation.entity)
         .filter(entity => !entity.layout && entity.type == type)
     
@@ -204,7 +204,7 @@ export default ({
         }
         filesToUpload.length && logger.info('WhiteBox storage: %s %s', 'upload', filesToUpload.length)
     
-        const entitiesToUnlink = useOperations([constants.OPERATION_DELETE])
+        const entitiesToUnlink = useJournal(OPERATION.DELETE)
         .map(operation => operation.entity)
         .filter(entity => !entity.layout && entity.type == type)
     
