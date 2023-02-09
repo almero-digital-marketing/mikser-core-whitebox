@@ -54,7 +54,7 @@ export default ({
     
         let added = 0
         for (let { entity } of useJournal(OPERATION.CREATE, OPERATION.UPDATE)) {
-            if (_.matches(feed.match || { type: 'document' })) {
+            if (feed.match && feed.match(entity) || !feed.match && entity.type == 'document' ) {
                 added++
                 if (!entity.name || !entity.id) {
                     logger.warn(entity, 'WhiteBox feed skipping')
@@ -84,7 +84,7 @@ export default ({
     
         let deleted = 0
         for (let { entity } of useJournal(OPERATION.DELETE)) {
-            if (_.matches(feed.match || { type: 'document' })) {
+            if (feed.match && feed.match(entity) || !feed.match && entity.type == 'document' ) {
                 deleted++
                 let data = {
                     vaultId: aguid(entity.id),
