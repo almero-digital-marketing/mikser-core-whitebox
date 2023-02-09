@@ -195,24 +195,24 @@ export default ({
     onProcessed(async () => {
         const logger = useLogger()
     
-        const filesToUpload = useJournal(OPERATION.CREATE, OPERATION.UPDATE)
-        .map(operation => operation.entity)
-        .filter(entity => !entity.layout && entity.type == type)
-    
-        for (let entity of filesToUpload) {
-            queue.push(async () => await upload(entity))
+        let uploaded = 0
+        for (let { entity } of useJournal(OPERATION.CREATE, OPERATION.UPDATE)) {
+            if (!entity.layout && entity.type == type) {
+                uploaded++
+                queue.push(async () => await upload(entity))
+            }
         }
-        filesToUpload.length && logger.info('WhiteBox storage: %s %s', 'upload', filesToUpload.length)
-    
-        const entitiesToUnlink = useJournal(OPERATION.DELETE)
-        .map(operation => operation.entity)
-        .filter(entity => !entity.layout && entity.type == type)
-    
-        for (let entity of entitiesToUnlink) {
-            const relativePath = entity.id.replace(`/${type}`, '')
-            queue.push(async () => await unlink(relativePath))
+        uploaded && logger.info('WhiteBox storage: %s %s', 'upload', uploaded)
+        
+        const unlinked = 0
+        for (let { entity } of useJournal(OPERATION.DELETE)) {
+            if (!entity.layout && entity.type == type) {
+                unlinked++
+                const relativePath = entity.id.replace(`/${type}`, '')
+                queue.push(async () => await unlink(relativePath))
+            }
         }
-        entitiesToUnlink.length && logger.info('WhiteBox storage: %s %s', 'unlink', entitiesToUnlink.length)
+        unlinked && logger.info('WhiteBox storage: %s %s', 'unlink', unlinked)
     })
     
     onImport(async () => {

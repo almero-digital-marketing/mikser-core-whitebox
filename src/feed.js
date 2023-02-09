@@ -35,7 +35,7 @@ export default ({
     
     onLoaded(async () => {
         const logger = useLogger()
-        if (mikser.mikser.options.clear) {
+        if (mikser.options.clear) {
             const { context } = mikser.config.whitebox
             const data = {
                 context: context || await useMachineId()
@@ -52,54 +52,54 @@ export default ({
         const { context, services: { feed } } = mikser.config.whitebox || { services: {} }
         if (!feed) return
     
-        const entitiesToAdd = useJournal(OPERATION.CREATE, OPERATION.UPDATE)
-        .map(operation => operation.entity)
-        .filter(_.matches(feed.match || { type: 'document' }))
-    
-        for (let entity of entitiesToAdd) {
-            if (!entity.name || !entity.id) {
-                logger.warn(entity, 'WhiteBox feed skipping')
-                continue
-            }
-            logger.trace('WhiteBox feed: %s', entity.id)
-            const data = {
-                passportId: uuidv1(),
-                vaultId: aguid(entity.id),
-                refId: entity.name == 'index' ? '/' : '/' + entity.name,
-                type: 'mikser.' + entity.meta?.type || entity.type,
-                data: _.pick(entity, ['meta', 'stamp', 'content', 'type', 'collection', 'format', 'id', 'uri']),
-                date: new Date(entity.time),
-                vaults: entity.meta?.vaults,
-                context: context || await useMachineId(),
-                expire: feed.expire === false ? false : feed.expire || '10 days'
-            }
-    
-            queue.push(async () => {
-                clearCache()
-                logger.debug('WhiteBox feed %s: %s %s', 'keep', entity.type, data.refId)
-                await whiteboxApi('feed', '/api/catalog/keep/one', data)
-            })
-        }
-        entitiesToAdd.length && logger.info('WhiteBox feed %s: %s', 'keep', entitiesToAdd.length)
-    
-        const entitiesToDelete = useJournal(OPERATION.DELETE)
-        .map(operation => operation.entity)
-        .filter(_.matches(feed.match || { type: 'document' }))
-    
-        for (let entity of entitiesToDelete) {
-            let data = {
-                vaultId: aguid(entity.id),
-                context: context || await useMachineId()
-            }
-    
-            if (!mikser.options.clear) {
-                queue.push(() => {
+        let added = 0
+        for (let { entity } of useJournal(OPERATION.CREATE, OPERATION.UPDATE)) {
+            if (_.matches(feed.match || { type: 'document' })) {
+                added++
+                if (!entity.name || !entity.id) {
+                    logger.warn(entity, 'WhiteBox feed skipping')
+                    continue
+                }
+                logger.trace('WhiteBox feed: %s', entity.id)
+                const data = {
+                    passportId: uuidv1(),
+                    vaultId: aguid(entity.id),
+                    refId: entity.name == 'index' ? '/' : '/' + entity.name,
+                    type: 'mikser.' + entity.meta?.type || entity.type,
+                    data: _.pick(entity, ['meta', 'stamp', 'content', 'type', 'collection', 'format', 'id', 'uri']),
+                    date: new Date(entity.time),
+                    vaults: entity.meta?.vaults,
+                    context: context || await useMachineId(),
+                    expire: feed.expire === false ? false : feed.expire || '10 days'
+                }
+        
+                queue.push(async () => {
                     clearCache()
-                    logger.debug('WhiteBox feed %s: %s %s', 'remove', entity.type, entity.id)
-                    return whiteboxApi('feed', '/api/catalog/remove', data)
+                    logger.debug('WhiteBox feed %s: %s %s', 'keep', entity.type, data.refId)
+                    await whiteboxApi('feed', '/api/catalog/keep/one', data)
                 })
             }
         }
-        entitiesToDelete.length && logger.info('WhiteBox feed %s: %s', 'remove', entitiesToDelete.length)
+        added && logger.info('WhiteBox feed %s: %s', 'keep', added)
+    
+        let deleted = 0
+        for (let { entity } of useJournal(OPERATION.DELETE)) {
+            if (_.matches(feed.match || { type: 'document' })) {
+                deleted++
+                let data = {
+                    vaultId: aguid(entity.id),
+                    context: context || await useMachineId()
+                }
+        
+                if (!mikser.options.clear) {
+                    queue.push(() => {
+                        clearCache()
+                        logger.debug('WhiteBox feed %s: %s %s', 'remove', entity.type, entity.id)
+                        return whiteboxApi('feed', '/api/catalog/remove', data)
+                    })
+                }
+            }
+        }
+        deleted && logger.info('WhiteBox feed %s: %s', 'remove', deleted)
     })
 }
