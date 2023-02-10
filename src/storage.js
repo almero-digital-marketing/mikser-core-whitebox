@@ -196,22 +196,24 @@ export default ({
         const logger = useLogger()
     
         let uploaded = 0
-        for (let { entity } of useJournal(OPERATION.CREATE, OPERATION.UPDATE)) {
+        let unlinked = 0
+        for (let { entity, operation } of useJournal(OPERATION.CREATE, OPERATION.UPDATE, OPERATION.DELETE)) {
             if (!entity.layout && entity.type == type) {
-                uploaded++
-                queue.push(async () => await upload(entity))
+                switch (operation) {
+                    case OPERATION.CREATE:
+                    case OPERATION.UPDATE:
+                        uploaded++
+                        queue.push(async () => await upload(entity))
+                    break
+                    case OPERATION.DELETE:
+                        unlinked++
+                        const relativePath = entity.id.replace(`/${type}`, '')
+                        queue.push(async () => await unlink(relativePath))
+                    break
+                }
             }
         }
         uploaded && logger.info('WhiteBox storage: %s %s', 'upload', uploaded)
-        
-        const unlinked = 0
-        for (let { entity } of useJournal(OPERATION.DELETE)) {
-            if (!entity.layout && entity.type == type) {
-                unlinked++
-                const relativePath = entity.id.replace(`/${type}`, '')
-                queue.push(async () => await unlink(relativePath))
-            }
-        }
         unlinked && logger.info('WhiteBox storage: %s %s', 'unlink', unlinked)
     })
     
