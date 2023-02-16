@@ -18,8 +18,18 @@ export default ({
         concurrency: 4,
         autostart: true
     })
-    queue.on('end', () => {
+
+    let types = new Set()
+    queue.on('end', async () => {
         const logger = useLogger()
+        const { context } = mikser.config.whitebox
+        for(let type of types) {
+            await whiteboxApi('feed', '/api/catalog/expire', {
+                context: context || await useMachineId(),
+                stamp: mikser.stamp,
+                type
+            })
+        }
         logger.info('WhiteBox feed completed')
     })
     
@@ -69,13 +79,14 @@ export default ({
                             passportId: uuidv1(),
                             vaultId: aguid(entity.id),
                             refId: entity.name == 'index' ? '/' : '/' + entity.name,
-                            type: 'mikser.' + entity.meta?.type || entity.type,
+                            type: 'mikser.' + (entity.meta?.type || entity.type),
                             data: _.pick(entity, ['meta', 'stamp', 'content', 'type', 'collection', 'format', 'id', 'uri']),
                             date: new Date(entity.time),
                             vaults: entity.meta?.vaults,
                             context: context || await useMachineId(),
                             expire: feed.expire === false ? false : feed.expire || '10 days'
                         }
+                        types.add(keepData.type)
                 
                         queue.push(async () => {
                             clearCache()
