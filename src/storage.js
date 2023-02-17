@@ -34,7 +34,9 @@ export default ({
     async function upload(entity, property) {
         const logger = useLogger()
         const fileName = _.get(entity, property)
-        const uploadName = '/storage' + fileName.replace(mikser.options.workingFolder, '').split('/storage/').pop()
+        let uploadName = fileName.replace(mikser.options.workingFolder, '').split('/storage/').pop()
+        uploadName = (uploadName[0] == '/' ? '/storage' : '/storage/') + uploadName
+
         if (pendingUploads[fileName]) return
         pendingUploads[fileName] = true
         try {
