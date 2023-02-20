@@ -48,8 +48,7 @@ export default ({
                     context: context || await useMachineId()
                 }
                 const responseHash = await axios.post(storage.url + '/' + storage.token + '/checksum', data)
-                const fileHash = await checksum(fileName)
-                const matchedHash = responseHash.data.success && fileHash == responseHash.data.hash
+                const matchedHash = responseHash.data.success && entity.checksum == responseHash.data.hash
                 logger.debug('WhiteBox storage %s: %s %s', 'checksum', fileName, matchedHash)
                 if (!matchedHash) {
                     const uploadHeaders = {
