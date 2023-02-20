@@ -50,7 +50,7 @@ export default ({
                 const responseHash = await axios.post(storage.url + '/' + storage.token + '/checksum', data)
                 const fileHash = await checksum(fileName)
                 const matchedHash = responseHash.data.success && fileHash == responseHash.data.hash
-                logger.debug('WhiteBox storage %s: %s %s', 'hash', fileName, matchedHash)
+                logger.debug('WhiteBox storage %s: %s %s', 'checksum', fileName, matchedHash)
                 if (!matchedHash) {
                     const uploadHeaders = {
                         expire: storage.expire === false ? false : storage.expire || '10 days',
