@@ -2,7 +2,6 @@ import Queue from 'queue'
 import fs from 'fs/promises'
 import { createReadStream } from 'node:fs'
 import axios from 'axios'
-import hasha from 'hasha'
 import FormData from 'form-data'
 import _ from 'lodash'
 
@@ -14,6 +13,7 @@ export default ({
     onFinalize,
     useJournal, 
     useMachineId, 
+    checksum,
     constants: { OPERATION }, 
 }) => {
 
@@ -47,8 +47,8 @@ export default ({
                     file: uploadName,
                     context: context || await useMachineId()
                 }
-                const responseHash = await axios.post(storage.url + '/' + storage.token + '/hash', data)
-                const fileHash = await hasha.fromFile(fileName, { algorithm: 'md5' })
+                const responseHash = await axios.post(storage.url + '/' + storage.token + '/checksum', data)
+                const fileHash = await checksum(fileName)
                 const matchedHash = responseHash.data.success && fileHash == responseHash.data.hash
                 logger.debug('WhiteBox storage %s: %s %s', 'hash', fileName, matchedHash)
                 if (!matchedHash) {
