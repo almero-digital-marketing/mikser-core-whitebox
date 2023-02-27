@@ -78,7 +78,7 @@ export default ({
                         const keepData = {
                             passportId: uuidv1(),
                             vaultId: aguid(entity.id),
-                            refId: entity.name == 'index' ? '/' : '/' + entity.name,
+                            refId: '/' + entity.name.replace('index', ''),
                             type: 'mikser.' + (entity.meta?.type || entity.type),
                             data: _.pick(entity, ['meta', 'stamp', 'content', 'type', 'collection', 'format', 'id', 'uri']),
                             date: new Date(entity.time),
