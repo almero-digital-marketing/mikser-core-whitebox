@@ -189,11 +189,13 @@ export default ({
         const { services: { storage } } = mikser.config.whitebox || { services: {} }
         if (!storage) return
 
-        for(let { entity } of useJournal(OPERATION.RENDER)) {
-            if (storage.match && storage.match(entity) || !storage.match && entity.id.indexOf('/storage/') != -1 ) {
-                const uploadName = entity.destination.replace(mikser.options.outputFolder, '').replace(mikser.options.workingFolder, '')
-                const uploadChecksum = await checksum(entity.destination)
-                queue.push(() => upload(entity.destination, uploadName, uploadChecksum))
+        for(let { success, entity } of useJournal(OPERATION.RENDER)) {
+            if (success) {
+                if (storage.match && storage.match(entity) || !storage.match && entity.id.indexOf('/storage/') != -1 ) {
+                    const uploadName = entity.destination.replace(mikser.options.outputFolder, '').replace(mikser.options.workingFolder, '')
+                    const uploadChecksum = await checksum(entity.destination)
+                    queue.push(() => upload(entity.destination, uploadName, uploadChecksum))
+                }
             }
         }
     })
