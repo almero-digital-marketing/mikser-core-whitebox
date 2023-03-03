@@ -65,7 +65,7 @@ export default ({
         let added = 0
         let deleted = 0
         for (let { entity, operation } of useJournal(OPERATION.CREATE, OPERATION.UPDATE, OPERATION.DELETE)) {
-            if (feed.match && feed.match(entity) || !feed.match && entity.type == 'document' ) {
+            if (entity.meta && (feed.match && feed.match(entity) || !feed.match && entity.type == 'document')) {
                 switch (operation) {
                     case OPERATION.CREATE:
                     case OPERATION.UPDATE:
@@ -79,10 +79,10 @@ export default ({
                             passportId: uuidv1(),
                             vaultId: aguid(entity.id),
                             refId: '/' + entity.name.replace('index', ''),
-                            type: 'mikser.' + (entity.meta?.type || entity.type),
+                            type: 'mikser.' + (entity.meta.type || entity.type),
                             data: _.pick(entity, ['meta', 'stamp', 'content', 'type', 'collection', 'format', 'id', 'uri']),
                             date: new Date(entity.time),
-                            vaults: entity.meta?.vaults,
+                            vaults: entity.meta.vaults,
                             context: context || await useMachineId(),
                             expire: feed.expire === false ? false : feed.expire || '10 days'
                         }
