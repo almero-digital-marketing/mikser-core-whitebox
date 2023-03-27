@@ -30,6 +30,7 @@ export default ({
                 type
             })
         }
+        clearCache()
         logger.info('WhiteBox feed completed')
     })
     
@@ -64,7 +65,7 @@ export default ({
     
         let added = 0
         let deleted = 0
-        for (let { entity, operation } of useJournal(OPERATION.CREATE, OPERATION.UPDATE, OPERATION.DELETE)) {
+        for await (let { entity, operation } of useJournal('WhiteBox feed', [OPERATION.CREATE, OPERATION.UPDATE, OPERATION.DELETE])) {
             if (entity.meta && (feed.match && feed.match(entity) || !feed.match && entity.type == 'document')) {
                 switch (operation) {
                     case OPERATION.CREATE:
@@ -89,7 +90,6 @@ export default ({
                         types.add(keepData.type)
                 
                         queue.push(async () => {
-                            clearCache()
                             logger.debug('WhiteBox feed %s: %s %s', 'keep', entity.type, keepData.refId)
                             await whiteboxApi('feed', '/api/catalog/keep/one', keepData)
                         })
@@ -103,7 +103,6 @@ export default ({
                 
                         if (!mikser.options.clear) {
                             queue.push(() => {
-                                clearCache()
                                 logger.debug('WhiteBox feed %s: %s %s', 'remove', entity.type, entity.id)
                                 return whiteboxApi('feed', '/api/catalog/remove', removeData)
                             })

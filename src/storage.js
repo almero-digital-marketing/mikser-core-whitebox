@@ -6,6 +6,7 @@ import FormData from 'form-data'
 import _ from 'lodash'
 import path from 'path'
 import { globby } from 'globby'
+import { setTimeout } from 'timers/promises'
 
 export default ({ 
     mikser, 
@@ -48,58 +49,61 @@ export default ({
         pendingUploads[fileName] = true
         if (history.get(uploadName) == uploadChecksum) return
 
-        try {
-            const fh = await fs.open(fileName, fs.constants.O_RDONLY | 0x10000000)
+        const uploadWhenReady = async () => {
             try {
-                const { context, services: { storage } } = mikser.config.whitebox
-                let data = {
-                    file: uploadName,
-                    context: context || await useMachineId()
-                }
-                const responseHash = await axios.post(storage.url + '/' + storage.token + '/checksum', data)
-                const matchedHash = responseHash.data.success && uploadChecksum == responseHash.data.hash
-                logger.debug('WhiteBox storage %s: %s %s', 'checksum', fileName, matchedHash)
-                if (!matchedHash) {
-                    const uploadHeaders = {
-                        expire: storage.expire === false ? false : storage.expire || '10 days',
-                        context: data.context
+                const fh = await fs.open(fileName, fs.constants.O_RDONLY | 0x10000000)
+                try {
+                    const { context, services: { storage } } = mikser.config.whitebox
+                    let data = {
+                        file: uploadName,
+                        context: context || await useMachineId()
                     }
-                    let form = new FormData()
-                    form.append(uploadName, createReadStream(fileName))
-                    let formHeaders = form.getHeaders()
-                    try {
-                        const responseUpload = await axios
-                        .post(storage.url + '/upload', form, {
-                            headers: {
-                                Authorization: 'Bearer ' + storage.token,
-                                ...formHeaders,
-                                ...uploadHeaders,
-                            },
-                            maxContentLength: Infinity,
-                            maxBodyLength: Infinity
-                        })
-                        if (responseUpload.data.uploads) {
-                            for (let file in responseUpload.data.uploads) {
-                                logger.debug('WhiteBox storage %s: %s', 'upload', uploadName)
-                                logger.info('WhiteBox storage %s: %s', 'link', responseUpload.data.uploads[file])
-                                history.set(uploadName, uploadChecksum)
-                            }
-                        }							
-                    } catch (err) {
-                        logger.error('WhiteBox storage upload error: %s', err.message)
+                    const responseHash = await axios.post(storage.url + '/' + storage.token + '/checksum', data)
+                    const matchedHash = responseHash.data.success && uploadChecksum == responseHash.data.hash
+                    logger.debug('WhiteBox storage %s: %s %s', 'checksum', fileName, matchedHash)
+                    if (!matchedHash) {
+                        const uploadHeaders = {
+                            expire: storage.expire === false ? false : storage.expire || '10 days',
+                            context: data.context
+                        }
+                        let form = new FormData()
+                        form.append(uploadName, createReadStream(fileName))
+                        let formHeaders = form.getHeaders()
+                        try {
+                            const responseUpload = await axios
+                            .post(storage.url + '/upload', form, {
+                                headers: {
+                                    Authorization: 'Bearer ' + storage.token,
+                                    ...formHeaders,
+                                    ...uploadHeaders,
+                                },
+                                maxContentLength: Infinity,
+                                maxBodyLength: Infinity
+                            })
+                            if (responseUpload.data.uploads) {
+                                for (let file in responseUpload.data.uploads) {
+                                    logger.debug('WhiteBox storage %s: %s', 'upload', uploadName)
+                                    logger.info('WhiteBox storage %s: %s', 'link', responseUpload.data.uploads[file])
+                                    history.set(uploadName, uploadChecksum)
+                                }
+                            }							
+                        } catch (err) {
+                            logger.error('WhiteBox storage upload error: %s', err.message)
+                        }
+                    } else {
+                        logger.debug('WhiteBox storage %s: %s', 'skip', uploadName)
                     }
-                } else {
-                    logger.debug('WhiteBox storage %s: %s', 'skip', uploadName)
+                } catch (err) {
+                    logger.error('WhiteBox storage error: %s', err.message)
                 }
+                fh.close()
             } catch (err) {
-                logger.error('WhiteBox storage error: %s', err.message)
+                logger.trace(err, 'WhiteBox storage postponed: %s', uploadName)
+                await setTimeout(3000)
+                await uploadWhenReady()
             }
-    
-            fh.close()
-        } catch (err) {
-            logger.trace(err, 'WhiteBox storage skipped: %s', uploadName)
         }
-    
+        await uploadWhenReady()
         delete pendingUploads[fileName]
     }
 
@@ -164,7 +168,7 @@ export default ({
     
         let added = 0
         let deleted = 0
-        for (let { entity, operation } of useJournal(OPERATION.CREATE, OPERATION.UPDATE, OPERATION.DELETE)) {
+        for await (let { entity, operation } of useJournal('WhiteBox storage processing', [OPERATION.CREATE, OPERATION.UPDATE, OPERATION.DELETE])) {
             const match = storage.match || ((entity) => entity.id.indexOf('/storage/') != -1)
             if (matchEntity(entity, match)) {
                 const uploadName = entity.source.replace(mikser.options.workingFolder, '')
@@ -185,12 +189,13 @@ export default ({
         deleted && logger.info('WhiteBox storage %s: %s', 'unlink', deleted)
     })
 
-    onFinalize(async () => {
+    onFinalize(async (signal) => {
         const { services: { storage } } = mikser.config.whitebox || { services: {} }
         if (!storage) return
 
-        for(let { success, entity } of useJournal(OPERATION.RENDER)) {
-            if (success) {
+        for await (let { entity, output } of useJournal('WhiteBox storage output', [OPERATION.RENDER])) {
+            if (signal.aborted) return
+            if (output?.success) {                
                 if (storage.match && storage.match(entity) || !storage.match && entity.id.indexOf('/storage/') != -1 ) {
                     const uploadName = entity.destination.replace(mikser.options.outputFolder, '').replace(mikser.options.workingFolder, '')
                     const uploadChecksum = await checksum(entity.destination)
