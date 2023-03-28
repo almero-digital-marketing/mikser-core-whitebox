@@ -1,4 +1,4 @@
-import Queue from 'queue'
+import pMap from 'p-map'
 import fs from 'fs/promises'
 import { createReadStream } from 'node:fs'
 import axios from 'axios'
@@ -30,23 +30,14 @@ export default ({
     const collection = 'storage'
     const type = 'file'
     
-    let queue = Queue({
-        concurrency: 4,
-        autostart: true
-    })
-    queue.on('end', () => {
-        const logger = useLogger()
-        logger.info('WhiteBox storage completed')
-    })
-    
-    const pendingUploads = {}
+    const pendingUploads = new Set()
     const history = new Map()
     
     async function upload(fileName, uploadName, uploadChecksum) {
         const logger = useLogger()
 
-        if (pendingUploads[fileName]) return
-        pendingUploads[fileName] = true
+        if (pendingUploads.has(fileName)) return
+        pendingUploads.add(fileName)
         if (history.get(uploadName) == uploadChecksum) return
 
         const uploadWhenReady = async () => {
@@ -83,7 +74,7 @@ export default ({
                             if (responseUpload.data.uploads) {
                                 for (let file in responseUpload.data.uploads) {
                                     logger.debug('WhiteBox storage %s: %s', 'upload', uploadName)
-                                    logger.info('WhiteBox storage %s: %s', 'link', responseUpload.data.uploads[file])
+                                    logger.debug('WhiteBox storage %s: %s', 'link', responseUpload.data.uploads[file])
                                     history.set(uploadName, uploadChecksum)
                                 }
                             }							
@@ -91,6 +82,7 @@ export default ({
                             logger.error('WhiteBox storage upload error: %s', err.message)
                         }
                     } else {
+                        history.set(uploadName, uploadChecksum)
                         logger.debug('WhiteBox storage %s: %s', 'skip', uploadName)
                     }
                 } catch (err) {
@@ -104,7 +96,7 @@ export default ({
             }
         }
         await uploadWhenReady()
-        delete pendingUploads[fileName]
+        pendingUploads.delete(fileName)
     }
 
     async function link(uploadName) {
@@ -116,7 +108,7 @@ export default ({
         }
         try {
             const response = await axios.post(storage.url + '/' + storage.token + '/link', data)
-            logger.info('WhiteBox storage %s: %s', 'link', response.data?.link)
+            logger.debug('WhiteBox storage %s: %s', 'link', response.data?.link)
             return response.data?.link
         } catch (err) {
             logger.trace('WhiteBox storage error: %s', err)
@@ -161,14 +153,14 @@ export default ({
         }))
     })
 
-    onProcessed(async () => {
+    onProcessed(async (signal) => {
         const logger = useLogger()
         const { services: { storage } } = mikser.config.whitebox || { services: {} }
         if (!storage) return
     
         let added = 0
         let deleted = 0
-        for await (let { entity, operation } of useJournal('WhiteBox storage processing', [OPERATION.CREATE, OPERATION.UPDATE, OPERATION.DELETE])) {
+        await pMap(useJournal('WhiteBox storage processing', [OPERATION.CREATE, OPERATION.UPDATE, OPERATION.DELETE], signal), async ({ entity, operation }) => {
             const match = storage.match || ((entity) => entity.id.indexOf('/storage/') != -1)
             if (matchEntity(entity, match)) {
                 const uploadName = entity.source.replace(mikser.options.workingFolder, '')
@@ -176,33 +168,33 @@ export default ({
                     case OPERATION.CREATE:
                     case OPERATION.UPDATE:
                         added++
-                        queue.push(() => upload(entity.source, uploadName, entity.checksum))
+                        await upload(entity.source, uploadName, entity.checksum)
                     break
                     case OPERATION.DELETE:
                         deleted++
-                        queue.push(() => unlink(uploadName))
+                        await unlink(uploadName)
                     break
                 }
             }
-        }
-        added && logger.info('WhiteBox storage %s: %s', 'upload', added)
-        deleted && logger.info('WhiteBox storage %s: %s', 'unlink', deleted)
+        }, { concurrency: 4, signal })
+
+        logger.debug('WhiteBox storage %s: %s', 'upload', added)
+        logger.debug('WhiteBox storage %s: %s', 'unlink', deleted)
     })
 
     onFinalize(async (signal) => {
         const { services: { storage } } = mikser.config.whitebox || { services: {} }
         if (!storage) return
 
-        for await (let { entity, output } of useJournal('WhiteBox storage output', [OPERATION.RENDER])) {
-            if (signal.aborted) return
+        await pMap(useJournal('WhiteBox storage output', [OPERATION.RENDER], signal), async ({ entity, output }) => {
             if (output?.success) {                
                 if (storage.match && storage.match(entity) || !storage.match && entity.id.indexOf('/storage/') != -1 ) {
                     const uploadName = entity.destination.replace(mikser.options.outputFolder, '').replace(mikser.options.workingFolder, '')
                     const uploadChecksum = await checksum(entity.destination)
-                    queue.push(() => upload(entity.destination, uploadName, uploadChecksum))
+                    await upload(entity.destination, uploadName, uploadChecksum)
                 }
             }
-        }
+        }, { concurrency: 4, signal })
     })
 
     onLoaded(async () => {

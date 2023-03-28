@@ -1,7 +1,6 @@
-import Queue from 'queue'
+import pMap from 'p-map'
 import { v1 as uuidv1 } from 'uuid'
 import aguid from 'aguid'
-import { debounce } from 'throttle-debounce'
 import _ from 'lodash'
 
 export default ({ 
@@ -14,14 +13,9 @@ export default ({
     useMachineId, 
     constants: { OPERATION }, 
 }) => {
-    let queue = Queue({
-        concurrency: 4,
-        autostart: true
-    })
-
     let types = new Set()
-    queue.on('end', async () => {
-        const logger = useLogger()
+
+    async function expireCatalog() {
         const { context } = mikser.config.whitebox
         for(let type of types) {
             await whiteboxApi('feed', '/api/catalog/expire', {
@@ -30,19 +24,17 @@ export default ({
                 type
             })
         }
-        clearCache()
-        logger.info('WhiteBox feed completed')
-    })
+    }
     
-    const clearCache = debounce(1000, async () => {
+    async function clearCache() {
         const logger = useLogger()
-        logger.info('WhiteBox feed %s: %s', 'clear', 'cache')
+        logger.debug('WhiteBox feed %s: %s', 'clear', 'cache')
         const { context } = mikser.config.whitebox
         let data = {
             context: context || await useMachineId()
         }
         return whiteboxApi('feed', '/api/catalog/clear/cache', data)
-    })
+    }
     
     onLoaded(async () => {
         const logger = useLogger()
@@ -52,20 +44,20 @@ export default ({
                 context: context || await useMachineId()
             }
     
-            logger.info('WhiteBox feed %s: %s', 'clear', 'catalog')
+            logger.debug('WhiteBox feed %s: %s', 'clear', 'catalog')
             await whiteboxApi('feed', '/api/catalog/clear', data)
-            clearCache()
+            await clearCache()
         }
     })
     
-    onProcessed(async () => {
+    onProcessed(async (signal) => {
         const logger = useLogger()
         const { context, services: { feed } } = mikser.config.whitebox || { services: {} }
         if (!feed) return
     
         let added = 0
         let deleted = 0
-        for await (let { entity, operation } of useJournal('WhiteBox feed', [OPERATION.CREATE, OPERATION.UPDATE, OPERATION.DELETE])) {
+        await pMap(useJournal('WhiteBox feed', [OPERATION.CREATE, OPERATION.UPDATE, OPERATION.DELETE], signal), async ({ entity, operation }) => {
             if (entity.meta && (feed.match && feed.match(entity) || !feed.match && entity.type == 'document')) {
                 switch (operation) {
                     case OPERATION.CREATE:
@@ -73,7 +65,7 @@ export default ({
                         added++
                         if (!entity.name || !entity.id) {
                             logger.warn(entity, 'WhiteBox feed skipping')
-                            continue
+                            return
                         }
                         logger.trace('WhiteBox feed: %s', entity.id)
                         const keepData = {
@@ -89,10 +81,8 @@ export default ({
                         }
                         types.add(keepData.type)
                 
-                        queue.push(async () => {
-                            logger.debug('WhiteBox feed %s: %s %s', 'keep', entity.type, keepData.refId)
-                            await whiteboxApi('feed', '/api/catalog/keep/one', keepData)
-                        })
+                        logger.debug('WhiteBox feed %s: %s %s', 'keep', entity.type, keepData.refId)
+                        await whiteboxApi('feed', '/api/catalog/keep/one', keepData)
                     break
                     case OPERATION.DELETE:
                         deleted++
@@ -102,16 +92,17 @@ export default ({
                         }
                 
                         if (!mikser.options.clear) {
-                            queue.push(() => {
-                                logger.debug('WhiteBox feed %s: %s %s', 'remove', entity.type, entity.id)
-                                return whiteboxApi('feed', '/api/catalog/remove', removeData)
-                            })
+                            logger.debug('WhiteBox feed %s: %s %s', 'remove', entity.type, entity.id)
+                            return whiteboxApi('feed', '/api/catalog/remove', removeData)
                         }
                     break
                 }
             }
-        }
-        added && logger.info('WhiteBox feed %s: %s', 'keep', added)
-        deleted && logger.info('WhiteBox feed %s: %s', 'remove', deleted)
+        }, { concurrency: 4, signal })
+        logger.debug('WhiteBox feed %s: %s', 'keep', added)
+        logger.debug('WhiteBox feed %s: %s', 'remove', deleted)
+
+        await expireCatalog()
+        await clearCache()
     })
 }
