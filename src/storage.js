@@ -183,6 +183,7 @@ export default ({
     })
 
     onFinalize(async (signal) => {
+        const logger = useLogger()
         const { services: { storage } } = mikser.config.whitebox || { services: {} }
         if (!storage) return
 
@@ -190,8 +191,16 @@ export default ({
             if (output?.success) {                
                 if (storage.match && storage.match(entity) || !storage.match && entity.id.indexOf('/storage/') != -1 ) {
                     const uploadName = entity.destination.replace(mikser.options.outputFolder, '').replace(mikser.options.workingFolder, '')
-                    const uploadChecksum = await checksum(entity.destination)
-                    await upload(entity.destination, uploadName, uploadChecksum)
+                    try {
+                        const uploadChecksum = await checksum(entity.destination)
+                        await upload(entity.destination, uploadName, uploadChecksum)
+                    } catch (err) {
+                        if (err.code == 'ENOENT') {
+                            logger.error('Output is missing: %s', entity.destination)
+                        } else {
+                            logger.error('WhiteBox storage error: %s', err.message)
+                        }
+                    }
                 }
             }
         }, { concurrency: 4, signal })
