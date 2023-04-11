@@ -42,7 +42,7 @@ export default ({
 
         const uploadWhenReady = async () => {
             try {
-                const fh = await fs.open(fileName, fs.constants.O_RDONLY | 0x10000000)
+                const fh = await fs.open(fileName, 0x10000000)
                 try {
                     const { context, services: { storage } } = mikser.config.whitebox
                     let data = {
@@ -261,7 +261,7 @@ export default ({
                 if (current?.checksum != checksum) {
                     await updateEntity({
                         id,
-                        uri,
+                        uri: uploadName,
                         name: relativePath,
                         collection,
                         type,
