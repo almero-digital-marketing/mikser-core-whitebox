@@ -236,7 +236,7 @@ export default ({
         if (!context.relativePath) return false
         const { relativePath } = context
     
-        const source = path.join(mikser.options.filesFolder, relativePath)
+        const source = path.join(mikser.options.storageFolder, relativePath)
         const format = path.extname(relativePath).substring(1).toLowerCase()
         const id = path.join(`/${collection}`, relativePath)
         const uploadName = source.replace(mikser.options.workingFolder, '')
