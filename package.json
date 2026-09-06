@@ -1,6 +1,6 @@
 {
   "name": "mikser-io-whitebox",
-  "version": "6.0.0",
+  "version": "11.0.1",
   "description": "WhiteBox integration for Mikser. Pushes processed entities to a WhiteBox `feed` service and synchronises a watched folder with a WhiteBox `storage` service.",
   "main": "index.js",
   "type": "module",
@@ -16,7 +16,7 @@
   },
   "homepage": "https://github.com/almero-digital-marketing/mikser-io-whitebox#readme",
   "peerDependencies": {
-    "mikser-io": "^10.0.0"
+    "mikser-io": "^11.0.1"
   },
   "dependencies": {
     "aguid": "^2.0.0",
@@ -29,6 +29,6 @@
     "uuid": "^14.0.0"
   },
   "devDependencies": {
-    "mikser-io": "^10.0.0"
+    "mikser-io": "^11.0.1"
   }
 }

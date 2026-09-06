@@ -51,7 +51,7 @@ export function whitebox(options = {}) {
         whiteboxApi,
         useMachineId,
         ...feed({ ...core, whiteboxApi, useMachineId }),
-        ...storage({ ...core, whiteboxApi, useMachineId }),
+        ...storage({ ...core, whiteboxApi, useMachineId }), module: import.meta.url,
     }
     }
 }
